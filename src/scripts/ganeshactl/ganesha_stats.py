@@ -14,20 +14,25 @@ import time
 import re
 import Ganesha.glib_dbus_stats
 
-def usage():
-    message = "Command displays global stats by default.\n"
-    message += "To display current status regarding stat counting use \n"
-    message += "%s status \n" % (sys.argv[0])
-    message += "To display stat counters use \n"
-    message += "%s [list_clients | deleg <ip address> | " % (sys.argv[0])
-    message += "inode | iov3 [export id] | iov4 [export id] | export |"
-    message += " total [export id] | fast | pnfs [export id] |"
-    message += " fsal <fsal name> | v3_full | v4_full] \n"
-    message += "To reset stat counters use \n"
-    message += "%s reset \n" % (sys.argv[0])
-    message += "To enable/disable stat counters use \n"
-    message += "%s [enable | disable] [all | nfs | fsal | v3_full | v4_full]\n" % (sys.argv[0])
-    sys.exit(message)
+def print_usage_exit(return_code):
+    message = "\nUsage: \n"
+    message += "Command displays global stats by default.\n"
+    message += "\nTo display current status regarding stat counting use: \n"
+    message += "  %s status \n" % (sys.argv[0])
+    message += "\nTo display stat counters use: \n"
+    message += "  %s [ list_clients | deleg <ip address> |\n" % (sys.argv[0])
+    message += "          inode | iov3 [export id] | iov4 [export id] |\n"
+    message += "          export | total [export id] | fast | pnfs [export id] |\n"
+    message += "          fsal <fsal name> | v3_full | v4_full | auth |\n"
+    message += "          client_io_ops <ip address> | export_details <export id> |\n"
+    message += "          client_all_ops <ip address>] \n"
+    message += "\nTo reset stat counters use: \n"
+    message += "  %s reset \n" % (sys.argv[0])
+    message += "\nTo enable/disable stat counters use: \n"
+    message += "  %s [ enable | disable] [all | nfs | fsal | v3_full |\n" % (sys.argv[0])
+    message += "           v4_full | auth | client_all_ops] \n"
+    print(message)
+    sys.exit(return_code)
 
 if len(sys.argv) < 2:
     command = 'global'
@@ -35,9 +40,10 @@ else:
     command = sys.argv[1]
 
 # check arguments
-commands = ('help', 'list_clients', 'deleg', 'global', 'inode', 'iov3', 'iov4',
-        'export', 'total', 'fast', 'pnfs', 'fsal', 'reset', 'enable',
-        'disable', 'status', 'v3_full', 'v4_full')
+commands = ('help', 'list_clients', 'deleg', 'global', 'inode', 'iov3',
+            'iov4', 'export', 'total', 'fast', 'pnfs', 'fsal', 'reset', 'enable',
+            'disable', 'status', 'v3_full', 'v4_full', 'auth', 'client_io_ops',
+            'export_details', 'client_all_ops')
 if command not in commands:
     print("Option '%s' is not correct." % command)
     usage()
