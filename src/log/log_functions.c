@@ -1892,11 +1892,173 @@ static struct gsh_dbus_prop *log_props[] = {
 	NULL
 };
 
+static log_components_t Convert_Enum_Component(char *str_component)
+{
+	if(!strcasecmp(str_component,"ALL"))
+		return COMPONENT_ALL;
+	else if(!strcasecmp(str_component,"LOG"))
+		return COMPONENT_LOG;
+	else if(!strcasecmp(str_component,"MEM_ALLOC"))
+		return COMPONENT_MEM_ALLOC;
+	else if(!strcasecmp(str_component,"MEMLEAKS"))
+		return COMPONENT_MEMLEAKS;
+	else if(!strcasecmp(str_component,"FSAL"))
+		return COMPONENT_FSAL;
+	else if(!strcasecmp(str_component,"NFSPROTO"))
+		return COMPONENT_NFSPROTO;
+	else if(!strcasecmp(str_component,"NFS_V4"))
+		return COMPONENT_NFS_V4;
+	else if(!strcasecmp(str_component,"EXPORT"))
+		return COMPONENT_EXPORT;
+	else if(!strcasecmp(str_component,"FILEHANDLE"))
+		return COMPONENT_FILEHANDLE;
+	else if(!strcasecmp(str_component,"DISPATCH"))
+		return COMPONENT_DISPATCH;
+	else if(!strcasecmp(str_component,"CACHE_INODE"))
+		return COMPONENT_CACHE_INODE;
+	else if(!strcasecmp(str_component,"CACHE_INODE_LRU"))
+		return COMPONENT_CACHE_INODE_LRU;
+	else if(!strcasecmp(str_component,"HASHTABLE"))
+		return COMPONENT_HASHTABLE;
+	else if(!strcasecmp(str_component,"CACHE_HASHTABLE_CACHE"))
+		return COMPONENT_HASHTABLE_CACHE;
+	else if(!strcasecmp(str_component,"DUPREQ"))
+		return COMPONENT_DUPREQ;
+	else if(!strcasecmp(str_component,"INIT"))
+		return COMPONENT_INIT;
+	else if(!strcasecmp(str_component,"MAIN"))
+		return COMPONENT_MAIN;
+	else if(!strcasecmp(str_component,"IDMAPPER"))
+		return COMPONENT_IDMAPPER;
+	else if(!strcasecmp(str_component,"NFS_READDIR"))
+		return COMPONENT_NFS_READDIR;
+	else if(!strcasecmp(str_component,"NFS_V4_LOCK"))
+		return COMPONENT_NFS_V4_LOCK;
+	else if(!strcasecmp(str_component,"CONFIG"))
+		return COMPONENT_CONFIG;
+	else if(!strcasecmp(str_component,"CLIENTID"))
+		return COMPONENT_CLIENTID;
+	else if(!strcasecmp(str_component,"SESSIONS"))
+		return COMPONENT_SESSIONS;
+	else if(!strcasecmp(str_component,"PNFS"))
+		return COMPONENT_PNFS;
+	else if(!strcasecmp(str_component,"RW_LOCK"))
+		return COMPONENT_RW_LOCK;
+	else if(!strcasecmp(str_component,"NLM"))
+		return COMPONENT_NLM;
+	else if(!strcasecmp(str_component,"RPC"))
+		return COMPONENT_RPC;
+	else if(!strcasecmp(str_component,"TIRPC"))
+		return COMPONENT_TIRPC;
+	else if(!strcasecmp(str_component,"NFS_CB"))
+		return COMPONENT_NFS_CB;
+	else if(!strcasecmp(str_component,"THREAD"))
+		return COMPONENT_THREAD;
+	else if(!strcasecmp(str_component,"NFS_V4_ACL"))
+		return COMPONENT_NFS_V4_ACL;
+	else if(!strcasecmp(str_component,"STATE"))
+		return COMPONENT_STATE;
+	else if(!strcasecmp(str_component,"9P"))
+		return COMPONENT_9P;
+	else if(!strcasecmp(str_component,"9P_DISPATCH"))
+		return COMPONENT_9P_DISPATCH;
+	else if(!strcasecmp(str_component,"FSAL_UP"))
+		return COMPONENT_FSAL_UP;
+	else if(!strcasecmp(str_component,"DBUS"))
+		return COMPONENT_DBUS;
+	else if(!strcasecmp(str_component,"NFS_MSK"))
+		return COMPONENT_NFS_MSK;
+	else if(!strcasecmp(str_component,"COUNT"))
+		return COMPONENT_COUNT;
+	else
+		return -1;
+}
+static bool log_dbus_set_level(DBusMessageIter *args,
+			   	DBusMessage *reply,
+			   	DBusError *error)
+{
+	char *errormsg = "Failed,Parse parameter error";
+	bool success = true;
+	bool result = false;
+	DBusMessageIter iter;
+	char *component_req;
+	log_components_t component;
+	    
+        dbus_message_iter_init_append(reply, &iter);
+        if(args != NULL) {
+		if (dbus_message_iter_get_arg_type(args) == DBUS_TYPE_STRING) 
+            		dbus_message_iter_get_basic(args, &component_req);
+                else
+			goto out;
+                if (!dbus_message_iter_next(args))
+			goto out;
+                component = Convert_Enum_Component(component_req);
+                if(component != -1)
+                   result = (log_props[component]->set)(args);
+                if(result)
+                   errormsg = "OK,Set log level success";
+	}
+	out:
+		dbus_status_reply(&iter, success, errormsg);
+		return success;
+};
+
+static bool log_dbus_get_level(DBusMessageIter *args,
+				DBusMessage *reply,
+				DBusError *error)
+{
+	char *errormsg = "Failed,Parse parameter error";
+	bool success = true;
+	bool result = false;
+	DBusMessageIter iter;
+	char *component_req;
+	log_components_t component;
+    
+	dbus_message_iter_init_append(reply, &iter);
+	if(args != NULL)
+	{
+		if (dbus_message_iter_get_arg_type(args) == DBUS_TYPE_STRING) {
+			dbus_message_iter_get_basic(args, &component_req);
+                        component = Convert_Enum_Component(component_req);
+                        if(component != -1)
+                           result = (log_props[component]->get)(&iter);
+                        if(result)
+			   errormsg = "OK,Get log level success"; 
+		}
+		else
+	    		goto out;
+	}
+	out:
+		dbus_status_reply(&iter, success, errormsg);
+		return success;
+
+}
+
+static struct gsh_dbus_method method_set_log_level = {
+	.name = "SetLogLevel",
+	.method = log_dbus_set_level,
+	.args = {STATUS_REPLY,
+		 END_ARG_LIST}
+};
+
+static struct gsh_dbus_method method_get_log_level = {
+        .name = "GetLogLevel",
+        .method = log_dbus_get_level,
+        .args = {STATUS_REPLY,
+                 END_ARG_LIST}
+};
+
+static struct gsh_dbus_method *log_methods[] = {
+		&method_set_log_level,
+                &method_get_log_level,
+		NULL
+};
+
 struct gsh_dbus_interface log_interface = {
 	.name = "org.ganesha.nfsd.log.component",
 	.signal_props = false,
 	.props = log_props,
-	.methods = NULL,
+	.methods = log_methods,
 	.signals = NULL
 };
 
