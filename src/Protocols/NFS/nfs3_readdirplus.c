@@ -172,7 +172,7 @@ int nfs3_readdirplus(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 */
 	estimated_num_entries = MIN((tracker.mem_left + sizeof(entryplus3 *))
 				    / (sizeof(entryplus3) - sizeof(char *) * 2),
-				    50);
+				    103);
 
 	tracker.total_entries = estimated_num_entries;
 
