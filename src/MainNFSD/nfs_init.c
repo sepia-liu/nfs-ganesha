@@ -75,6 +75,7 @@
 #include "common_utils.h"
 #include "nfs_init.h"
 #include <urcu-bp.h>
+#include "conf_url.h"
 
 /**
  * @brief init_complete used to indicate if ganesha is during
@@ -289,7 +290,7 @@ void nfs_prereq_init(const char *program_name, const char *host_name,
 		     int debug_level, const char *log_path, bool dump_trace)
 {
 	healthstats.enqueued_reqs = nfs_health_.enqueued_reqs = 0;
-	healthstats.enqueued_reqs = nfs_health_.dequeued_reqs = 0;
+	healthstats.dequeued_reqs = nfs_health_.dequeued_reqs = 0;
 
 	/* Initialize logging */
 	SetNamePgm(program_name);
@@ -447,10 +448,10 @@ int nfs_set_param_from_conf(config_file_t parse_tree,
 	if (load_recovery_param_from_conf(parse_tree, err_type) < 0)
 		return -1;
 
-#ifdef USE_RADOS_URLS
-	if (rados_url_setup_watch() != 0)
+	if (gsh_rados_url_setup_watch() != 0) {
+		LogEvent(COMPONENT_INIT, "Couldn't setup rados_urls");
 		return -1;
-#endif
+	}
 
 	LogEvent(COMPONENT_INIT, "Configuration file successfully parsed");
 
@@ -990,9 +991,12 @@ bool nfs_health(void)
 	dequeue_diff = newdeq - healthstats.dequeued_reqs;
 
 	/* Consider healthy and making progress if we have dequeued some
-	 * requests or there is nothing to dequeue.
+	 * requests or there is one or less to dequeue.  Don't check
+	 * enqueue_diff == 0 here, as there will be suprious warnings during
+	 * times of low traffic, when an enqueue happens to coincide with the
+	 * heartbeat firing.
 	 */
-	healthy = dequeue_diff > 0 || enqueue_diff == 0;
+	healthy = dequeue_diff > 0 || enqueue_diff <= 1;
 
 	if (!healthy) {
 		LogWarn(COMPONENT_DBUS,

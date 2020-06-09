@@ -779,7 +779,10 @@ void complete_request(nfs_request_t *reqdata,
 				 reqdata->svc.rq_msg.cb_proc,
 				 errno);
 			SVC_DESTROY(xprt);
-			return;
+			/* We failed to send the response, but the
+			 * request is complete, so we should mark
+			 * the same in our DRC.
+			 */
 		}
 
 		LogFullDebug(COMPONENT_DISPATCH,
@@ -903,6 +906,15 @@ static enum xprt_stat nfs_rpc_process_request(nfs_request_t *reqdata)
 	} else if (no_dispatch) {
 		LogFullDebug(COMPONENT_DISPATCH,
 			     "RPCSEC_GSS no_dispatch=%d", no_dispatch);
+		if (reqdata->svc.rq_msg.cb_cred.oa_flavor
+			== RPCSEC_GSS) {
+			struct rpc_gss_cred *gc = (struct rpc_gss_cred *)
+				reqdata->svc.rq_msg.rq_cred_body;
+
+			if (gc->gc_proc == RPCSEC_GSS_DATA)
+				return svcerr_auth(&reqdata->svc,
+						   RPCSEC_GSS_CREDPROBLEM);
+		}
 		return SVC_STAT(xprt);
 #endif
 	}
@@ -1602,38 +1614,45 @@ enum xprt_stat nfs_rpc_valid_NFS(struct svc_req *req)
 
 	reqdata->funcdesc = &invalid_funcdesc;
 
-	if (req->rq_msg.cb_prog == NFS_program[P_NFS]) {
-		if (req->rq_msg.cb_vers == NFS_V4) {
-			if ((NFS_options & CORE_OPTION_NFSV4)
-			    && req->rq_msg.cb_proc <= NFSPROC4_COMPOUND) {
-				reqdata->funcdesc =
-					&nfs4_func_desc[req->rq_msg.cb_proc];
-				return nfs_rpc_process_request(reqdata);
-			}
-			return nfs_rpc_noproc(reqdata);
+	if (req->rq_msg.cb_prog != NFS_program[P_NFS]) {
+		return nfs_rpc_noprog(reqdata);
+	}
+
+	if (req->rq_msg.cb_vers == NFS_V4 && NFS_options & CORE_OPTION_NFSV4) {
+		if (req->rq_msg.cb_proc <= NFSPROC4_COMPOUND) {
+			reqdata->funcdesc =
+				&nfs4_func_desc[req->rq_msg.cb_proc];
+			return nfs_rpc_process_request(reqdata);
 		}
-		if (req->rq_msg.cb_vers == NFS_V3) {
+		return nfs_rpc_noproc(reqdata);
+	}
+
 #ifdef _USE_NFS3
-			if ((NFS_options & CORE_OPTION_NFSV3)
-			    && req->rq_msg.cb_proc <= NFSPROC3_COMMIT) {
-				reqdata->funcdesc =
-					&nfs3_func_desc[req->rq_msg.cb_proc];
-				return nfs_rpc_process_request(reqdata);
-			}
-#endif /* _USE_NFS3 */
-			return nfs_rpc_noproc(reqdata);
+	if (req->rq_msg.cb_vers == NFS_V3 && NFS_options & CORE_OPTION_NFSV3) {
+		if (req->rq_msg.cb_proc <= NFSPROC3_COMMIT) {
+			reqdata->funcdesc =
+				&nfs3_func_desc[req->rq_msg.cb_proc];
+			return nfs_rpc_process_request(reqdata);
 		}
-		lo_vers = NFS_V4;
+		return nfs_rpc_noproc(reqdata);
+	}
+#endif /* _USE_NFS3 */
+
+	/* Unsupported version! Set low and high versions correctly */
+	if (NFS_options & CORE_OPTION_NFSV4)
+		hi_vers = NFS_V4;
+	else
 		hi_vers = NFS_V3;
 #ifdef _USE_NFS3
-		if (NFS_options & CORE_OPTION_NFSV3)
-			lo_vers = NFS_V3;
-#endif /* _USE_NFS3 */
-		if (NFS_options & CORE_OPTION_NFSV4)
-			hi_vers = NFS_V4;
-		return nfs_rpc_novers(reqdata, lo_vers, hi_vers);
-	}
-	return nfs_rpc_noprog(reqdata);
+	if (NFS_options & CORE_OPTION_NFSV3)
+		lo_vers = NFS_V3;
+	else
+		lo_vers = NFS_V4;
+#else
+	lo_vers = NFS_V4;
+#endif
+
+	return nfs_rpc_novers(reqdata, lo_vers, hi_vers);
 }
 
 enum xprt_stat nfs_rpc_valid_NLM(struct svc_req *req)

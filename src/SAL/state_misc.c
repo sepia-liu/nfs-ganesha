@@ -276,6 +276,7 @@ state_status_t state_error_convert(fsal_status_t fsal_status)
 
 	case ERR_FSAL_DQUOT:
 	case ERR_FSAL_NAMETOOLONG:
+	case ERR_FSAL_STILL_IN_USE:
 	case ERR_FSAL_EXIST:
 	case ERR_FSAL_NOTEMPTY:
 	case ERR_FSAL_NOTDIR:
@@ -1300,7 +1301,7 @@ void state_wipe_file(struct fsal_obj_handle *obj)
 	if (obj->type != REGULAR_FILE)
 		return;
 
-	PTHREAD_RWLOCK_wrlock(&obj->state_hdl->state_lock);
+	STATELOCK_lock(obj);
 
 	release = state_lock_wipe(obj->state_hdl);
 #ifdef _USE_NLM
@@ -1308,7 +1309,7 @@ void state_wipe_file(struct fsal_obj_handle *obj)
 #endif /* _USE_NLM */
 	state_nfs4_state_wipe(obj->state_hdl);
 
-	PTHREAD_RWLOCK_unlock(&obj->state_hdl->state_lock);
+	STATELOCK_unlock(obj);
 
 #ifdef DEBUG_SAL
 	dump_all_states();

@@ -92,6 +92,8 @@
 static struct blkid_struct_cache *cache;
 #endif
 
+pthread_rwlock_t fs_lock;
+
 /* fsal_attach_export
  * called from the FSAL's create_export method with a reference on the fsal.
  */
@@ -297,6 +299,8 @@ const char *msg_fsal_err(fsal_errors_t fsal_err)
 		return "Permission denied";
 	case ERR_FSAL_FAULT:
 		return "Bad address";
+	case ERR_FSAL_STILL_IN_USE:
+		return "Device or resource busy";
 	case ERR_FSAL_EXIST:
 		return "This object already exists";
 	case ERR_FSAL_XDEV:
@@ -1098,10 +1102,10 @@ static void posix_create_file_system(struct mntent *mnt)
 
 		LogDebug(COMPONENT_FSAL,
 			 "Skipped duplicate %s namelen=%d fsid=0x%016"PRIx64
-			 ".0x%016"PRIx64" %"PRIu64".%"PRIu64,
+			 ".0x%016"PRIx64" %"PRIu64".%"PRIu64" type=%s",
 			 fs->path, (int) fs->namelen,
 			 fs->fsid.major, fs->fsid.minor,
-			 fs->fsid.major, fs->fsid.minor);
+			 fs->fsid.major, fs->fsid.minor, fs->type);
 
 		if (fs1->device[0] != '/' && fs->device[0] == '/') {
 			LogDebug(COMPONENT_FSAL,
@@ -1134,9 +1138,9 @@ static void posix_create_file_system(struct mntent *mnt)
 
 		LogDebug(COMPONENT_FSAL,
 			 "Skipped duplicate %s namelen=%d dev=%"
-			 PRIu64".%"PRIu64,
+			 PRIu64".%"PRIu64" type=%s",
 			 fs->path, (int) fs->namelen,
-			 fs->dev.major, fs->dev.minor);
+			 fs->dev.major, fs->dev.minor, fs->type);
 
 		if (fs1->device[0] != '/' && fs->device[0] == '/') {
 			LogDebug(COMPONENT_FSAL,
@@ -1163,11 +1167,12 @@ static void posix_create_file_system(struct mntent *mnt)
 
 	LogInfo(COMPONENT_FSAL,
 		"Added filesystem %s namelen=%d dev=%"PRIu64".%"PRIu64
-		" fsid=0x%016"PRIx64".0x%016"PRIx64" %"PRIu64".%"PRIu64,
+		" fsid=0x%016"PRIx64".0x%016"PRIx64" %"PRIu64".%"PRIu64
+		" type=%s",
 		fs->path, (int) fs->namelen,
 		fs->dev.major, fs->dev.minor,
 		fs->fsid.major, fs->fsid.minor,
-		fs->fsid.major, fs->fsid.minor);
+		fs->fsid.major, fs->fsid.minor, fs->type);
 }
 
 static void posix_find_parent(struct fsal_filesystem *this)
@@ -1289,9 +1294,27 @@ int populate_posix_file_systems(bool force)
 		 * kernel due to unavailable NFS servers. Since we don't
 		 * support them anyway, check this early and avoid
 		 * hangs!
+		 *
+		 * Also skip some other filesystem types that we would never
+		 * export.
 		 */
-		if (strcasecmp(mnt->mnt_type, "nfs") == 0 ||
-		    strcasecmp(mnt->mnt_type, "autofs") == 0) {
+		if (strncasecmp(mnt->mnt_type, "nfs", 3) == 0 ||
+		    strcasecmp(mnt->mnt_type, "autofs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "sysfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "proc") == 0 ||
+		    strcasecmp(mnt->mnt_type, "devtmpfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "securityfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "cgroup") == 0 ||
+		    strcasecmp(mnt->mnt_type, "selinuxfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "debugfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "hugetlbfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "mqueue") == 0 ||
+		    strcasecmp(mnt->mnt_type, "pstore") == 0 ||
+		    strcasecmp(mnt->mnt_type, "devpts") == 0 ||
+		    strcasecmp(mnt->mnt_type, "configfs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "binfmt_misc") == 0 ||
+		    strcasecmp(mnt->mnt_type, "rpc_pipefs") == 0 ||
+		    strcasecmp(mnt->mnt_type, "vboxsf") == 0) {
 			LogDebug(COMPONENT_FSAL,
 				 "Ignoring %s because type %s",
 				 mnt->mnt_dir,

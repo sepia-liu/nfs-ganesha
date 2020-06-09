@@ -135,6 +135,7 @@ static bool admin_dbus_grace(DBusMessageIter *args,
 	nfs_grace_start_t gsp;
 	char *input = NULL;
 	char *ip;
+	int ret;
 
 	dbus_message_iter_init_append(reply, &iter);
 	if (args == NULL) {
@@ -171,7 +172,24 @@ static bool admin_dbus_grace(DBusMessageIter *args,
 		if (gsp.event == EVENT_TAKE_NODEID)
 			gsp.nodeid = atoi(gsp.ipaddr);
 	}
-	nfs_start_grace(&gsp);
+
+	do {
+		ret = nfs_start_grace(&gsp);
+		/*
+		 * grace could fail if there are refs taken.
+		 * wait for no refs and retry.
+		 */
+		if (ret == -EAGAIN) {
+			LogEvent(COMPONENT_DBUS, "Retry grace");
+			nfs_wait_for_grace_norefs();
+		} else if (ret) {
+			LogCrit(COMPONENT_DBUS, "Start grace failed %d",
+				ret);
+			success = false;
+			errormsg = "Unable to start grace";
+			break;
+		}
+	} while (ret);
  out:
 	gsh_dbus_status_reply(&iter, success, errormsg);
 	return success;
@@ -578,9 +596,8 @@ static void do_shutdown(void)
 
 	LogEvent(COMPONENT_MAIN, "NFS EXIT: stopping NFS service");
 
-#ifdef USE_RADOS_URLS
-	rados_url_shutdown_watch();
-#endif
+	gsh_rados_url_shutdown_watch();
+
 	config_url_shutdown();
 
 #ifdef USE_DBUS
@@ -611,6 +628,16 @@ static void do_shutdown(void)
 	LogEvent(COMPONENT_MAIN, "Shutting down RPC services");
 	(void)svc_shutdown(SVC_SHUTDOWN_FLAG_NONE);
 
+	LogEvent(COMPONENT_MAIN, "Stopping reaper threads");
+	rc = reaper_shutdown();
+	if (rc != 0) {
+		LogMajor(COMPONENT_THREAD,
+			 "Error shutting down reaper thread: %d", rc);
+		disorderly = true;
+	} else {
+		LogEvent(COMPONENT_THREAD, "Reaper thread shut down.");
+	}
+
 	LogEvent(COMPONENT_MAIN, "Stopping worker threads");
 #ifdef _USE_9P
 	if (nfs_param.core_param.core_options & CORE_OPTION_9P) {
@@ -634,15 +661,6 @@ static void do_shutdown(void)
 		disorderly = true;
 	} else {
 		LogEvent(COMPONENT_THREAD, "General fridge shut down.");
-	}
-
-	rc = reaper_shutdown();
-	if (rc != 0) {
-		LogMajor(COMPONENT_THREAD,
-			 "Error shutting down reaper thread: %d", rc);
-		disorderly = true;
-	} else {
-		LogEvent(COMPONENT_THREAD, "Reaper thread shut down.");
 	}
 
 	LogEvent(COMPONENT_MAIN, "Removing all exports.");

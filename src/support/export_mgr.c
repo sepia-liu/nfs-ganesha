@@ -1997,12 +1997,15 @@ static bool show_cache_inode_stats(DBusMessageIter *args,
 	bool success = true;
 	char *errormsg = "OK";
 	DBusMessageIter iter;
+	struct timespec timestamp;
 
+	now(&timestamp);
 	dbus_message_iter_init_append(reply, &iter);
 	gsh_dbus_status_reply(&iter, success, errormsg);
-	gsh_dbus_append_timestamp(&iter, &nfs_ServerBootTime);
+	gsh_dbus_append_timestamp(&iter, &timestamp);
 
 	mdcache_dbus_show(&iter);
+	mdcache_utilization(&iter);
 
 	return true;
 }
@@ -2542,6 +2545,7 @@ static struct gsh_dbus_method fsal_statistics = {
 		 END_ARG_LIST}
 };
 
+
 #ifdef _USE_9P
 /**
  * DBUS method to report 9p I/O statistics
@@ -2671,6 +2675,7 @@ static struct gsh_dbus_method cache_inode_show = {
 	.args = {STATUS_REPLY,
 		 TIMESTAMP_REPLY,
 		 TOTAL_OPS_REPLY,
+		 LRU_UTILIZATION_REPLY,
 		 END_ARG_LIST}
 };
 
@@ -2749,7 +2754,9 @@ static struct gsh_dbus_method *export_stats_methods[] = {
 	&status_stats,
 	&v3_full_statistics,
 	&v4_full_statistics,
+#ifdef _HAVE_GSSAPI
 	&auth_statistics,
+#endif /* _HAVE_GSSAPI */
 	&export_details,
 	NULL
 };

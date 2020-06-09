@@ -492,27 +492,28 @@ class GlobalStats():
 
 class InodeStats():
     def __init__(self, stats):
-        self.status = stats[1]
-        if stats[1] != "OK":
-            return
-        self.timestamp = (stats[2][0], stats[2][1])
-        self.cache_requests = stats[3][1]
-        self.cache_hits = stats[3][3]
-        self.cache_miss = stats[3][5]
-        self.cache_conflict = stats[3][7]
-        self.cache_add = stats[3][9]
-        self.cache_mapping = stats[3][11]
+        self.stats = stats
     def __str__(self):
-        if self.status != "OK":
-            return "No NFS activity, GANESHA RESPONSE STATUS: " + self.status
-        return ("Inode Cache statistics \n" +
-                "Stats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs" +
-                "\n  Cache Requests: " + str(self.cache_requests) +
-                "\n  Cache Hits: " + str(self.cache_hits) +
-                "\n  Cache Misses: " + str(self.cache_miss) +
-                "\n  Cache Conflicts: " + str(self.cache_conflict) +
-                "\n  Cache Adds: " + str(self.cache_add) +
-                "\n  Cache Mapping: " + str(self.cache_mapping))
+        output = ""
+        if self.stats[1] != "OK":
+            return "No NFS activity, GANESHA RESPONSE STATUS: " + self.stats[1]
+        else:
+            output += "\nTimestamp: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs\n"
+            output += "\nInode Cache statistics"
+            output += "\n" + (self.stats[3][0]).ljust(25) + "%s" % (str(self.stats[3][1]).rjust(20))
+            output += "\n" + (self.stats[3][2]).ljust(25) + "%s" % (str(self.stats[3][3]).rjust(20))
+            output += "\n" + (self.stats[3][4]).ljust(25) + "%s" % (str(self.stats[3][5]).rjust(20))
+            output += "\n" + (self.stats[3][6]).ljust(25) + "%s" % (str(self.stats[3][7]).rjust(20))
+            output += "\n" + (self.stats[3][8]).ljust(25) + "%s" % (str(self.stats[3][9]).rjust(20))
+            output += "\n" + (self.stats[3][10]).ljust(25) + "%s" % (str(self.stats[3][11]).rjust(20))
+            output += "\n\nLRU Utilization Data"
+            output += "\n" + (self.stats[4][0]).ljust(25) + "%s" % (str(self.stats[4][1]).rjust(20))
+            output += "\n" + (self.stats[4][2]).ljust(25) + "%s" % (str(self.stats[4][3]).rjust(20))
+            output += "\n" + (self.stats[4][4]).ljust(25) + (self.stats[4][5]).ljust(30)
+            output += "\n" + (self.stats[4][6]).ljust(25) + "%s" % (str(self.stats[4][7]).rjust(20))
+            output += "\n" + (self.stats[4][8]).ljust(25) + "%s" % (str(self.stats[4][9]).rjust(20))
+        return output
+
 
 class FastStats():
     def __init__(self, stats):
@@ -799,15 +800,15 @@ class DumpFULLV3Stats():
             output += "\nName            Total     Error      Dups |       Avg          Min           Max   "
             i = 0
             tot_len = len(self.stats[3])
-            while (i+7) <= tot_len:
-                output += "\n" + (self.stats[3][i+0]).ljust(11)
-                output += " %s" % (str(self.stats[3][i+1]).rjust(9))
-                output += " %s" % (str(self.stats[3][i+2]).rjust(9))
-                output += " %s |" % (str(self.stats[3][i+3]).rjust(9))
-                output += " %12.6f" % (self.stats[3][i+4])
-                output += " %12.6f" % (self.stats[3][i+5])
-                output += " %12.6f" % (self.stats[3][i+6])
-                i += 7
+            while i < tot_len:
+                output += "\n" + (self.stats[3][i][0]).ljust(11)
+                output += " %s" % (str(self.stats[3][i][1]).rjust(9))
+                output += " %s" % (str(self.stats[3][i][2]).rjust(9))
+                output += " %s |" % (str(self.stats[3][i][3]).rjust(9))
+                output += " %12.6f" % (self.stats[3][i][4])
+                output += " %12.6f" % (self.stats[3][i][5])
+                output += " %12.6f" % (self.stats[3][i][6])
+                i += 1
             return output
 
 class DumpFULLV4Stats():
@@ -832,12 +833,12 @@ class DumpFULLV4Stats():
             output += "\nName                        Total     Error  |       Avg          Min           Max   "
             i = 0
             tot_len = len(self.stats[3])
-            while (i+6) <= tot_len:
-                output += "\n" + (self.stats[3][i+0]).ljust(23)
-                output += " %s" % (str(self.stats[3][i+1]).rjust(9))
-                output += " %s  |" % (str(self.stats[3][i+2]).rjust(9))
-                output += " %12.6f" % (self.stats[3][i+3])
-                output += " %12.6f" % (self.stats[3][i+4])
-                output += " %12.6f" % (self.stats[3][i+5])
-                i += 6
+            while i < tot_len:
+                output += "\n" + (self.stats[3][i][0]).ljust(23)
+                output += " %s" % (str(self.stats[3][i][1]).rjust(9))
+                output += " %s  |" % (str(self.stats[3][i][2]).rjust(9))
+                output += " %12.6f" % (self.stats[3][i][3])
+                output += " %12.6f" % (self.stats[3][i][4])
+                output += " %12.6f" % (self.stats[3][i][5])
+                i += 1
             return output

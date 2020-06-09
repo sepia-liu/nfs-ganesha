@@ -1,7 +1,7 @@
 /*
  * vim:noexpandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright 2015-2019 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2015-2020 Red Hat, Inc. and/or its affiliates.
  * Author: Daniel Gryniewicz <dang@redhat.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -824,9 +824,11 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	/* Validate the attributes we just set. */
 	mdc_fixup_md(nentry, &nentry->attrs);
 
-	/* Hash and insert entry, after this would need attr_lock to
+	/* Insert and hash entry, after this would need attr_lock to
 	 * access attributes.
 	 */
+	mdcache_lru_insert(nentry, reason);
+
 	cih_set_latched(nentry, &latch, op_ctx->fsal_export->fsal, &fh_desc,
 			CIH_SET_UNLOCK | CIH_SET_HASHED);
 
@@ -842,7 +844,6 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	} else {
 		LogDebug(COMPONENT_CACHE_INODE, "New entry %p added", nentry);
 	}
-	mdcache_lru_insert(nentry, reason);
 	*entry = nentry;
 	(void)atomic_inc_uint64_t(&cache_stp->inode_added);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
@@ -2383,7 +2384,8 @@ mdc_readdir_chunk_object(const char *name, struct fsal_obj_handle *sub_handle,
 				mdcache_put(new_dir_entry->entry);
 				new_dir_entry->entry = NULL;
 			}
-			if (state->prev_chunk) {
+			if (state->prev_chunk &&
+			    state->prev_chunk != state->cur_chunk) {
 				state->prev_chunk->next_ck = new_dir_entry->ck;
 			}
 		} else {
@@ -2405,6 +2407,8 @@ mdc_readdir_chunk_object(const char *name, struct fsal_obj_handle *sub_handle,
 		 * filled in.
 		 */
 		result = DIR_READAHEAD;
+	} else if (state->cur_chunk->num_entries == 1 && state->prev_chunk) {
+		state->prev_chunk->next_ck = cookie;
 	}
 
 	if (new_entry->obj_handle.type == DIRECTORY) {
@@ -3083,6 +3087,10 @@ again:
 	} else {
 		fsal_cookie_t *name;
 
+		if (chunk) {
+			mdcache_lru_unref_chunk(chunk);
+		}
+
 		/* We found the dirent... If next_ck is NOT whence, we SHOULD
 		 * have found the first dirent in the chunk, if not, then
 		 * something went wrong at some point. That chunk is valid,
@@ -3259,17 +3267,18 @@ again:
 			continue;
 		}
 
-		if (dirent->ck == whence) {
-			/* When called with whence, the caller always wants the
-			 * next entry, skip this entry. */
-			mdcache_put(entry);
-			continue;
-		}
-
 		next_ck = dirent->ck;
 		LogFullDebugAlt(COMPONENT_NFS_READDIR, COMPONENT_CACHE_INODE,
 				"Setting next_ck=%"PRIx64,
 				next_ck);
+
+		if (dirent->ck == whence) {
+			/* When called with whence, the caller always wants the
+			 * next entry, skip this entry. */
+			mdcache_put(entry);
+			reload_chunk = false;
+			continue;
+		}
 
 		/* Ensure the attribute cache is valid.  The simplest way to do
 		 * this is to call getattrs().  We need a copy anyway, to ensure

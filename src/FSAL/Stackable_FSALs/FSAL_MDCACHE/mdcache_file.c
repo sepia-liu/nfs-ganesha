@@ -171,6 +171,20 @@ static fsal_status_t mdc_open2_by_name(mdcache_entry_t *mdc_parent,
 
 	} /* else UNGUARDED, go ahead and open the file. */
 
+	/* Check if the object type is REGULAR_FILE. If not then give error. */
+	if (entry->obj_handle.type != REGULAR_FILE) {
+		LogDebug(COMPONENT_CACHE_INODE,
+			 "Trying to open a non-regular file");
+		if (entry->obj_handle.type == DIRECTORY) {
+			/* Trying to open2 a directory */
+			mdcache_put(entry);
+			return fsalstat(ERR_FSAL_ISDIR, 0);
+		} else {
+			/* Trying to open2 any other non-regular file */
+			mdcache_put(entry);
+			return fsalstat(ERR_FSAL_SYMLINK, 0);
+		}
+	}
 	subcall(
 		status = entry->sub_handle->obj_ops->open2(
 			entry->sub_handle, state, openflags, createmode,
@@ -632,10 +646,16 @@ static void mdc_write_super_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
 		 */
 		mdcache_get(entry);
 		mdcache_kill_entry(entry);
-	}
-	else
+	} else {
+		/*
+		 * attr_generation must be increased prior to
+		 * MDCACHE_TRUST_ATTRS to prevent a case where this flag
+		 * was queried before the generation was updated
+		 */
+		atomic_inc_uint32_t(&entry->attr_generation);
 		atomic_clear_uint32_t_bits(&entry->mde_flags,
 					   MDCACHE_TRUST_ATTRS);
+	}
 
 	arg->cb(arg->obj_hdl, ret, obj_data, arg->cb_arg);
 

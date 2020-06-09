@@ -136,6 +136,7 @@ struct gsh_client *get_gsh_client(sockaddr_t *client_ipaddr, bool lookup_only)
 	void **cache_slot;
 	uint64_t hash = hash_sockaddr(client_ipaddr, true);
 
+	memcpy(&v.cl_addrbuf, client_ipaddr, sizeof(v.cl_addrbuf));
 	PTHREAD_RWLOCK_rdlock(&client_by_ip.lock);
 
 	/* check cache */
@@ -256,8 +257,6 @@ int remove_gsh_client(sockaddr_t *client_ipaddr)
 		server_st = container_of(cl, struct server_stats, client);
 		server_stats_free(&server_st->st);
 		server_stats_allops_free(&server_st->c_all);
-		if (cl->hostaddr_str != NULL)
-			gsh_free(cl->hostaddr_str);
 		gsh_free(server_st);
 	}
 	return removed;
