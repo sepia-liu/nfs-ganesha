@@ -101,7 +101,7 @@ Requires: openSUSE-release
 @BCOND_SANITIZE_ADDRESS@ sanitize_address
 %global use_sanitize_address %{on_off_switch sanitize_address}
 
-%global dev_version %{lua: s = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); s2 = string.gsub(s, '%-', '.'); print((s2 ~= nil and s2 ~= '') and s2 or "0.1") }
+%global dev_version %{lua: s = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); s2 = string.gsub(s, '%-', '.'); print((s2 ~= nil and s2 ~= '') and s2 or "3.4") }
 
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
 
